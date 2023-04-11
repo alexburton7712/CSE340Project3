@@ -15,38 +15,73 @@ std::string address[1000];
 
 InstructionNode* current = instructionList[0];
 
+bool isPrimary(int index){
+    // primary --> ID | NUM
+    if (lexer->peek(index).token_type == ID | lexer->peek(index).token_type == NUM){
+        return true;
+    }
+    return false;
+}
+
+bool isRelop(int index){
+    if (lexer->peek(index).token_type == GREATER | 
+    lexer->peek(index).token_type == LESS | 
+    lexer->peek(index).token_type == NOTEQUAL){
+        return true;
+    }
+    return false;
+}
+
+bool isOp(int index){
+    if (lexer->peek(index).token_type == PLUS | 
+    lexer->peek(index).token_type == MINUS | 
+    lexer->peek(index).token_type == MULT | 
+    lexer->peek(index).token_type == DIV){
+        return true;
+    }
+    return false;
+}
+
+bool isCondition(int index){
+    //condition --> primary relop primary
+    if (isPrimary(index) && isRelop(index+1) && isPrimary(index+2)){
+        return true;
+    }
+    return false;
+}
+
+bool isExpression(int index){
+    //expression --> primary op primary
+    if (isPrimary(index) && isOp(index+1) && isPrimary(index+2)){
+        return true;
+    }
+    return false;
+}
+
 std::vector<Token> parseCondition() {
     //primary relop primary
     std::vector<Token> condition;
 
     //primary
-    if (lexer->peek(1).token_type == ID | lexer->peek(1).token_type == NUM){
+    if (isCondition(1)){
 
-        //op
-        if (lexer->peek(2).token_type == GREATER | lexer->peek(2).token_type == LESS | 
-            lexer->peek(2).token_type == NOTEQUAL){
-            
-            //primary
-            if (lexer->peek(3).token_type == ID | lexer->peek(3).token_type == NUM) {
-                
-                //add to address and mem?
-                condition.push_back(lexer->GetToken());
-                address[next_available] = condition[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
+        //primary
+        condition.push_back(lexer->GetToken());
+        address[next_available] = condition[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
 
-                condition.push_back(lexer->GetToken());
-                address[next_available] = condition[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
+        //relop 
+        condition.push_back(lexer->GetToken());
+        address[next_available] = condition[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
 
-                condition.push_back(lexer->GetToken());
-                address[next_available] = condition[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-                
-            } 
-        }
+        //primary
+        condition.push_back(lexer->GetToken());
+        address[next_available] = condition[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
     }
     return condition;
     
@@ -56,78 +91,86 @@ std::vector<Token> parseExpression() {
     //primary op primary
     std::vector<Token> expression;
 
-    //primary
-    if (lexer->peek(1).token_type == ID | lexer->peek(1).token_type == NUM){
+    if (isExpression(1)){
 
-        //op
-        if (lexer->peek(2).token_type == PLUS | lexer->peek(2).token_type == MINUS | 
-            lexer->peek(2).token_type == MULT | lexer->peek(2).token_type == DIV){
-            
-            //primary
-            if (lexer->peek(3).token_type == ID | lexer->peek(3).token_type == NUM) {
-                
-                //add to address and mem?
-                expression.push_back(lexer->GetToken());
-                address[next_available] = expression[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
+        //add to address and mem?
+        expression.push_back(lexer->GetToken());
+        address[next_available] = expression[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
 
-                expression.push_back(lexer->GetToken());
-                address[next_available] = expression[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
+        expression.push_back(lexer->GetToken());
+        address[next_available] = expression[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
 
-                expression.push_back(lexer->GetToken());
-                address[next_available] = expression[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-                
-            } 
-        }
+        expression.push_back(lexer->GetToken());
+        address[next_available] = expression[next_available].lexeme;
+        mem[next_available] = 0;
+        next_available++;
     }
     return expression;
 }
 
 //parsers for each rule in the grammar
-int parseAssignment() {
+std::vector<Token> parseAssignment() {
     
     // ID EQUAL expr SEMICOLON
     // ID EQUAL primary SEMICOLON
+    std::vector<Token> assignment;
     
     if (lexer->peek(1).token_type == ID){
         if (lexer->peek(2).token_type == EQUAL){
-            
-            //if not expression, check for primary
-            std::vector<Token> result = parseExpression();
-            if (result.size() == 0){
-                
-                //if primary, continue
-                if (lexer->peek(1).token_type == ID | lexer->peek(1).token_type == NUM){
 
-                    //check if semicolon
-                    if (lexer->peek(1).token_type == SEMICOLON){
-                        address[next_available] = lexer->GetToken().lexeme;
-                        mem[next_available] = 0;
-                        next_available++;
-                        return 1;
-                    }
-                }
+            if (isPrimary(3)){
+                //the ID
+                assignment.push_back(lexer->GetToken());
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
+
+                //the equal
+                assignment.push_back(lexer->GetToken());
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
+
+                //primary (ID or NUM)
+                assignment.push_back(lexer->GetToken());
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
             }
-            else{
-                //check if semicolon
-                if (lexer->peek(1).token_type == SEMICOLON){
-                    address[next_available] = lexer->GetToken().lexeme;
-                    mem[next_available] = 0;
-                    next_available++;
-                    return 1;
+            else if (isExpression(3)){
+                //the ID
+                assignment.push_back(lexer->GetToken());
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
+
+                //the equal
+                assignment.push_back(lexer->GetToken());
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
+
+                //the expression
+                std::vector<Token> expression = parseExpression();
+                for (int i = 0; i < expression.size(); i++){
+                    assignment.push_back(expression[i]);
                 }
+                address[next_available] = assignment[next_available].lexeme;
+                mem[next_available] = 0;
+                next_available++;
             }
         }
     }
-    return -1;
+    lexer->GetToken();
+    return assignment;
 }
 
 void parseOutput() {
+    //output --> output ID SEMICOLON
     //consume OUTPUT token
     lexer->GetToken();
     
@@ -143,6 +186,7 @@ void parseOutput() {
 }
 
 void parseInput() {
+    //input --> INPUT ID SEMICOLON
     //consume INPUT token
     lexer->GetToken();
     
@@ -187,9 +231,17 @@ void parseWhile() {
             cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
 
             //set jump to the first instruction of body
-
+            cJump->next = NULL;
+            current = cJump;
             
             parseBody();
+
+            current->next = cJump;
+            cJump->cjmp_inst.target = NULL;
+            cJump->next = current->next;
+
+            current = cJump;
+            
         }
     }
 
@@ -225,8 +277,15 @@ void parseIf() {
             cJump->cjmp_inst.condition_op = cop;
             cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
 
+            cJump->next = NULL;
+            current->next = cJump;
+            
+            current = cJump;
 
             parseBody();
+
+            cJump->cjmp_inst.target = current->next;
+
         }
     }
 }
@@ -255,7 +314,22 @@ void parseSwitch() {
 
 //translate it to a WHILE loop
 void parseFor() {
+    if(lexer->peek(1).token_type == FOR) {
+        //consume FOR
+        lexer->GetToken();
+        //consume LPARENTHESIS
+        lexer->GetToken();
 
+        std::vector<Token> assignment = parseAssignment();
+
+        std::vector<Token> condition = parseCondition();
+
+        //create assignment instruction
+
+        //set current to the assignment instruction
+
+        //
+    }
 }
 
 void parseInputs() {
