@@ -64,24 +64,12 @@ std::vector<Token> parseCondition() {
 
     //primary
     if (isCondition(1)){
-
         //primary
         condition.push_back(lexer->GetToken());
-        address[next_available] = condition[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
-
         //relop 
         condition.push_back(lexer->GetToken());
-        address[next_available] = condition[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
-
         //primary
         condition.push_back(lexer->GetToken());
-        address[next_available] = condition[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
     }
     return condition;
     
@@ -93,21 +81,12 @@ std::vector<Token> parseExpression() {
 
     if (isExpression(1)){
 
-        //add to address and mem?
+        //primary
         expression.push_back(lexer->GetToken());
-        address[next_available] = expression[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
-
+        //op
         expression.push_back(lexer->GetToken());
-        address[next_available] = expression[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
-
+        //primary
         expression.push_back(lexer->GetToken());
-        address[next_available] = expression[next_available].lexeme;
-        mem[next_available] = 0;
-        next_available++;
     }
     return expression;
 }
@@ -121,51 +100,70 @@ std::vector<Token> parseAssignment() {
     
     if (lexer->peek(1).token_type == ID){
         if (lexer->peek(2).token_type == EQUAL){
-
             if (isPrimary(3)){
                 //the ID
                 assignment.push_back(lexer->GetToken());
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-
                 //the equal
                 assignment.push_back(lexer->GetToken());
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-
                 //primary (ID or NUM)
                 assignment.push_back(lexer->GetToken());
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
             }
             else if (isExpression(3)){
-                //the ID
+                //the ID 0
                 assignment.push_back(lexer->GetToken());
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-
-                //the equal
+                //the equal 1
                 assignment.push_back(lexer->GetToken());
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
-
-                //the expression
+                //the expression 2 3 4
                 std::vector<Token> expression = parseExpression();
                 for (int i = 0; i < expression.size(); i++){
                     assignment.push_back(expression[i]);
                 }
-                address[next_available] = assignment[next_available].lexeme;
-                mem[next_available] = 0;
-                next_available++;
             }
         }
     }
+    //get semicolon
     lexer->GetToken();
+
+    //make instruction node
+    InstructionNode* assignInstruction = new InstructionNode();
+    //if size is 3, then the rhs is primary
+    if (assignment.size() == 3){
+        int lhsIndex = indexOfToken(assignment[0].lexeme);
+        int op1Index = indexOfToken(assignment[2].lexeme);
+        assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
+        assignInstruction->assign_inst.operand1_index = op1Index;
+    }
+    else{ //else is expression
+        int lhsIndex = indexOfToken(assignment[0].lexeme);
+        int op1Index = indexOfToken(assignment[2].lexeme);
+        int op2Index = indexOfToken(assignment[4].lexeme);
+        //int opInstIndex = indexOfToken(assignment[3].lexeme);
+
+        assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
+        assignInstruction->assign_inst.operand1_index = op1Index;
+        assignInstruction->assign_inst.operand2_index = op2Index;
+
+        ArithmeticOperatorType aop;
+        //get conditional operation
+        if(assignment[3].lexeme == "+") {
+            aop = OPERATOR_PLUS;
+        }
+        else if(assignment[3].lexeme == "-") {
+            aop = OPERATOR_MINUS;
+        }
+        else if(assignment[3].lexeme == "*") {
+            aop = OPERATOR_MULT;
+        }
+        else if(assignment[3].lexeme == "/") {
+            aop = OPERATOR_DIV;
+        }
+        assignInstruction->assign_inst.op = aop;
+    }
+
+    //link 
+    current->next = assignInstruction;
+    current = assignInstruction;
+    
     return assignment;
 }
 
@@ -231,16 +229,22 @@ void parseWhile() {
             cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
 
             //set jump to the first instruction of body
+            current->next = cJump;
             cJump->next = NULL;
             current = cJump;
             
             parseBody();
-
+            
             current->next = cJump;
-            cJump->cjmp_inst.target = NULL;
-            cJump->next = current->next;
+            
+            //make a NOOP instruction
+            InstructionNode* noop = new InstructionNode();
 
-            current = cJump;
+            cJump->cjmp_inst.target = noop;
+
+            noop->next = NULL;
+
+            current = noop;
             
         }
     }
@@ -290,26 +294,49 @@ void parseIf() {
     }
 }
 
-void parseCase() {
+std::vector<Token> parseCase() {
+    std::vector<Token> cases;
 
     if (lexer->peek(1).token_type == CASE){
         if (lexer->peek(2).token_type == NUM){
             if (lexer->peek(3).token_type == COLON){
-                //parse body, make sure not empty, and then add to mem/add/etc
+                
+                //get case
+                cases.push_back(lexer->GetToken());
+
+                //get num
+                cases.push_back(lexer->GetToken());
+
+                //get colon
+                lexer->GetToken();
+                
                 parseBody();
             }
         }
     }
 
+    return cases;
+
 }
 
 void parseCaseList() {
     //repeatedly call parseCase for all cases in the switch statement
+
+
+    
+    //parse default case
 }
 
 //translate it to a sequence of IF statements
 void parseSwitch() {
     //take care of switch statements with and without default case
+    if (lexer->peek(1).token_type == SWITCH){
+        if (lexer->peek(2).token_type == ID){
+            if (lexer->peek(3).token_type == LBRACE){
+                parseCaseList();
+            }
+        }
+    }
 }
 
 //translate it to a WHILE loop
@@ -320,15 +347,11 @@ void parseFor() {
         //consume LPARENTHESIS
         lexer->GetToken();
 
-        std::vector<Token> assignment = parseAssignment();
+        parseAssignment();
 
         std::vector<Token> condition = parseCondition();
 
-        //create assignment instruction
-
-        //set current to the assignment instruction
-
-        //
+        
     }
 }
 
