@@ -319,21 +319,28 @@ std::vector<Token> parseCase() {
 
 }
 
-void parseCaseList() {
+void parseCaseList(Token switchId) {
     //repeatedly call parseCase for all cases in the switch statement
 
-
+    //switchId is the variable in the switch
     
+
+
     //parse default case
 }
 
 //translate it to a sequence of IF statements
 void parseSwitch() {
+    Token switchId;
     //take care of switch statements with and without default case
     if (lexer->peek(1).token_type == SWITCH){
         if (lexer->peek(2).token_type == ID){
             if (lexer->peek(3).token_type == LBRACE){
-                parseCaseList();
+                lexer->GetToken(); //get switch
+                switchId = lexer->GetToken(); //get id --> this is variable that we check value in case
+                lexer->GetToken(); //get lbrace
+                parseCaseList(switchId);
+                lexer->GetToken(); //get rbrace
             }
         }
     }
