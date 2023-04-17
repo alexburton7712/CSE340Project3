@@ -11,9 +11,10 @@
 LexicalAnalyzer* lexer = new LexicalAnalyzer();
 
 std::vector<InstructionNode*> instructionList;
+
 std::string address[1000];
 
-InstructionNode* current = instructionList[0];
+InstructionNode* current;
 
 bool isPrimary(int index){
     // primary --> ID | NUM
@@ -126,12 +127,14 @@ std::vector<Token> parseAssignment() {
 
     //make instruction node
     InstructionNode* assignInstruction = new InstructionNode();
+    assignInstruction->type = ASSIGN;
     //if size is 3, then the rhs is primary
     if (assignment.size() == 3){
         int lhsIndex = indexOfToken(assignment[0].lexeme);
         int op1Index = indexOfToken(assignment[2].lexeme);
         assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
         assignInstruction->assign_inst.operand1_index = op1Index;
+        assignInstruction->assign_inst.op = OPERATOR_NONE;
     }
     else{ //else is expression
         int lhsIndex = indexOfToken(assignment[0].lexeme);
@@ -174,6 +177,7 @@ void parseOutput() {
     
     //make output instruction for the variable
     InstructionNode* output = new InstructionNode();
+    output->type = OUT;
     output->output_inst.var_index = indexOfToken(lexer->GetToken().lexeme);
     current->next = output;
     output->next = NULL;
@@ -190,6 +194,7 @@ void parseInput() {
     
     //make input instruction for the variable
     InstructionNode* input = new InstructionNode();
+    input->type = IN;
     input->input_inst.var_index = indexOfToken(lexer->GetToken().lexeme);
     current->next = input;
     input->next = NULL;
@@ -212,6 +217,7 @@ void parseWhile() {
         if(condition.size() != 0) {
             //need to make a CJUMP instruction
             InstructionNode* cJump = new InstructionNode();
+            cJump->type = CJMP;
             cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
             
             ConditionalOperatorType cop;
@@ -239,6 +245,7 @@ void parseWhile() {
             
             //make a NOOP instruction
             InstructionNode* noop = new InstructionNode();
+            noop->type = NOOP;
 
             cJump->cjmp_inst.target = noop;
 
@@ -264,6 +271,7 @@ void parseIf() {
 
         if(condition.size() != 0) {
             InstructionNode* cJump = new InstructionNode();
+            cJump->type = CJMP;
             cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
 
             ConditionalOperatorType cop;
@@ -294,39 +302,78 @@ void parseIf() {
     }
 }
 
-std::vector<Token> parseCase() {
-    std::vector<Token> cases;
+// std::vector<Token> parseCase() {
+//     std::vector<Token> cases;
 
-    if (lexer->peek(1).token_type == CASE){
-        if (lexer->peek(2).token_type == NUM){
-            if (lexer->peek(3).token_type == COLON){
+//     if (lexer->peek(1).token_type == CASE){
+//         if (lexer->peek(2).token_type == NUM){
+//             if (lexer->peek(3).token_type == COLON){
                 
-                //get case
-                cases.push_back(lexer->GetToken());
+//                 //get case
+//                 cases.push_back(lexer->GetToken());
 
-                //get num
-                cases.push_back(lexer->GetToken());
+//                 //get num
+//                 cases.push_back(lexer->GetToken());
 
-                //get colon
-                lexer->GetToken();
+//                 //get colon
+//                 lexer->GetToken();
                 
-                parseBody();
-            }
-        }
-    }
+//                 parseBody();
+//             }
+//         }
+//     }
 
-    return cases;
+//     return cases;
 
-}
+// }
 
 void parseCaseList(Token switchId) {
-    //repeatedly call parseCase for all cases in the switch statement
-
-    //switchId is the variable in the switch
+    InstructionNode* endSwitch = new InstructionNode();
+    endSwitch->type = NOOP;
     
+    do {
+        //consume CASE
+        if(lexer->peek(1).token_type == DEFAULT) {
+            //consume DEFAULT
+            lexer->GetToken();
+            //consume COLON
+            lexer->GetToken();
+            //make default instruction
+            parseBody();
+            current->next = endSwitch;
+        }
+        else {
+            //consume CASE
+            lexer->GetToken();
+            Token op2 = lexer->GetToken();
+            //consume COLON
+            lexer->GetToken();
+            //make IF instruction 
+            InstructionNode* cJump = new InstructionNode();
+            cJump->type = CJMP;
+            cJump->cjmp_inst.operand1_index = indexOfToken(switchId.lexeme);
+            cJump->cjmp_inst.operand2_index = indexOfToken(op2.lexeme);
+            cJump->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
 
+            current->next = cJump;
+            current = cJump;
 
-    //parse default case
+            parseBody();
+
+            current->next = endSwitch;
+
+            cJump->cjmp_inst.target = cJump->next;
+            
+            InstructionNode* noop = new InstructionNode();
+            noop->type = NOOP;
+            cJump->next = noop;
+            current = noop;
+
+        }
+    }while(lexer->peek(1).token_type != RBRACE);
+
+    current = endSwitch;
+
 }
 
 //translate it to a sequence of IF statements
@@ -346,6 +393,16 @@ void parseSwitch() {
     }
 }
 
+ConditionalOperatorType condOpType(std::string op) {
+    if(op == ">") {
+        return CONDITION_GREATER;
+    }
+    if(op == "<") {
+        return CONDITION_LESS;
+    }
+    return CONDITION_NOTEQUAL;
+}
+
 //translate it to a WHILE loop
 void parseFor() {
     if(lexer->peek(1).token_type == FOR) {
@@ -355,8 +412,45 @@ void parseFor() {
         lexer->GetToken();
 
         parseAssignment();
+        //keep track of the first assignment 
+        InstructionNode* firstAssignment = current;
 
         std::vector<Token> condition = parseCondition();
+
+        //consume SEMICOLON
+        lexer->GetToken();
+
+        parseAssignment();
+        InstructionNode* secondAssignment = current;
+
+        //make a CJ instruction
+        InstructionNode* cJump = new InstructionNode();
+        cJump->type = CJMP;
+        cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
+        cJump->cjmp_inst.condition_op = condOpType(condition[1].lexeme);
+        cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
+
+        firstAssignment->next = cJump;
+
+        current = cJump;
+
+        //consume the RPAREN
+        lexer->GetToken();
+
+        parseBody();
+
+        current->next = secondAssignment;
+        current = current->next;
+
+        current->next = cJump;
+
+        //create NOOP
+        InstructionNode* noop = new InstructionNode();
+        noop->type = NOOP;
+        noop->next = NULL;
+
+        cJump->cjmp_inst.target = noop;
+        current = noop;
 
         
     }
@@ -458,6 +552,8 @@ void parseStatementList() {
 
 void parseProgram() {
     lexer = new LexicalAnalyzer();
+    current = new InstructionNode;
+    current->type = NOOP;
 
     parseVarSection();
 
@@ -467,33 +563,7 @@ void parseProgram() {
 }
 
 struct InstructionNode * parse_generate_intermediate_representation() {
-    //assign each variable and constant a memory address and store that address in a variable
-    // Assigning location for variable "a"
-    // int address_a = next_available;
-    // mem[next_available] = 0;
-    // next_available++;
 
-    //input instruction for variable a
-    // i1->type = IN;                                      
-    // i1->input_inst.var_index = address_a;
-    // i1->next = i2;
-
-    //output
-    //  int var_index, index in mem of the variable to print out
-
-    //assignment
-    //     int left_hand_side_index;
-    //     int operand1_index;
-    //     int operand2_index;
-    //     ArithmeticOperatorType op; // operator, If op == OPERATOR_NONE then only operand1 is meaningful.
-    //     struct AssignmentStatement* next;
-
-    //expression
-    //boolean condition
-    //if
-    //while
-    //for, translate to a while loop
-    //switch, translate to a sequence of if statements followed by a goto label
-
+    
 
 }
