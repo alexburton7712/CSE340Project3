@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -7,6 +8,8 @@
 #include <vector>
 #include "compiler.h"
 #include "lexer.h"
+using namespace std;
+
 
 LexicalAnalyzer* lexer = new LexicalAnalyzer();
 
@@ -32,7 +35,6 @@ void parseOutput();
 void parseInput();
 void parseWhile();
 void parseIf();
-void parseIf();
 void parseStatementList();
 void parseStatement();
 void parseBody();
@@ -50,7 +52,7 @@ void parseProgram();
 
 //returns index of lexeme in address array
 int indexOfToken(std::string str) {
-    for(int i = 0; i < address->length(); i++) {
+    for(int i = 0; i < 1000; i++) {
         if(address[i] == str) {
             return i;
         }
@@ -102,6 +104,7 @@ bool isExpression(int index){
 }
 
 std::vector<Token> parseCondition() {
+    //std::cout << "parseCondition" << endl;
     //primary relop primary
     std::vector<Token> condition;
 
@@ -119,6 +122,7 @@ std::vector<Token> parseCondition() {
 }
 
 std::vector<Token> parseExpression() {
+    //std::cout << "parseExpression" << endl;
     //primary op primary
     std::vector<Token> expression;
 
@@ -136,34 +140,26 @@ std::vector<Token> parseExpression() {
 
 //parsers for each rule in the grammar
 std::vector<Token> parseAssignment() {
-    
+    //std::cout << "parseAssignment" << endl;
     // ID EQUAL expr SEMICOLON
     // ID EQUAL primary SEMICOLON
     std::vector<Token> assignment;
-    
-    if (lexer->peek(1).token_type == ID){
-        if (lexer->peek(2).token_type == EQUAL){
-            if (isPrimary(3)){
-                //the ID
-                assignment.push_back(lexer->GetToken());
-                //the equal
-                assignment.push_back(lexer->GetToken());
-                //primary (ID or NUM)
-                assignment.push_back(lexer->GetToken());
-            }
-            else if (isExpression(3)){
-                //the ID 0
-                assignment.push_back(lexer->GetToken());
-                //the equal 1
-                assignment.push_back(lexer->GetToken());
-                //the expression 2 3 4
-                std::vector<Token> expression = parseExpression();
-                for (int i = 0; i < expression.size(); i++){
-                    assignment.push_back(expression[i]);
-                }
-            }
-        }
+    bool primary = false;
+
+    //the ID
+    assignment.push_back(lexer->GetToken());
+    //the equal
+    assignment.push_back(lexer->GetToken());
+    //primary (ID or NUM)
+    assignment.push_back(lexer->GetToken());
+
+    if (lexer->peek(1).token_type != SEMICOLON){
+        //op
+        assignment.push_back(lexer->GetToken());
+        //second primary
+        assignment.push_back(lexer->GetToken());
     }
+
     //get semicolon
     lexer->GetToken();
 
@@ -171,14 +167,15 @@ std::vector<Token> parseAssignment() {
     InstructionNode* assignInstruction = new InstructionNode();
     assignInstruction->type = ASSIGN;
     //if size is 3, then the rhs is primary
-    if (assignment.size() == 3){
+    if (primary == true){
         int lhsIndex = indexOfToken(assignment[0].lexeme);
         int op1Index = indexOfToken(assignment[2].lexeme);
         assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
         assignInstruction->assign_inst.operand1_index = op1Index;
         assignInstruction->assign_inst.op = OPERATOR_NONE;
     }
-    else{ //else is expression
+    else{ 
+        //else is expression
         int lhsIndex = indexOfToken(assignment[0].lexeme);
         int op1Index = indexOfToken(assignment[2].lexeme);
         int op2Index = indexOfToken(assignment[4].lexeme);
@@ -207,12 +204,14 @@ std::vector<Token> parseAssignment() {
 
     //link 
     current->next = assignInstruction;
+    assignInstruction->next = NULL;
     current = assignInstruction;
     
     return assignment;
 }
 
 void parseOutput() {
+    //std::cout << "parseOutput" << endl;
     //output --> output ID SEMICOLON
     //consume OUTPUT token
     lexer->GetToken();
@@ -230,6 +229,7 @@ void parseOutput() {
 }
 
 void parseInput() {
+    //std::cout << "parseInput" << endl;
     //input --> INPUT ID SEMICOLON
     //consume INPUT token
     lexer->GetToken();
@@ -248,6 +248,7 @@ void parseInput() {
 
 
 void parseWhile() {
+    //std::cout << "parseWhile" << endl;
     //consume WHILE
     if(lexer->peek(1).token_type == WHILE) {
         lexer->GetToken();
@@ -302,60 +303,78 @@ void parseWhile() {
 }
 
 void parseIf() {
-    if(lexer->peek(1).token_type == IF) {
-        //consume the IF
-        lexer->GetToken();
+    //std::cout << "parseIf" << endl;
+    
+    //consume the IF
+    lexer->GetToken();
 
-        //consume the LPARENTHESIS
-        lexer->GetToken();
+    //consume the LPARENTHESIS
+    lexer->GetToken();
 
-        //get the condition involved
-        std::vector<Token> condition = parseCondition();
+    //get the condition involved
+    std::vector<Token> condition = parseCondition();
 
-        if(condition.size() != 0) {
-            InstructionNode* cJump = new InstructionNode();
-            cJump->type = CJMP;
-            cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
+    if(condition.size() != 0) {
+        InstructionNode* cJump = new InstructionNode();
+        cJump->type = CJMP;
+        cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
 
-            ConditionalOperatorType cop;
-            //get conditional operation
-            if(condition[1].lexeme == ">") {
-                cop = CONDITION_GREATER;
-            }
-            else if(condition[1].lexeme == "<") {
-                cop = CONDITION_LESS;
-            }
-            else {
-                cop = CONDITION_NOTEQUAL;
-            }
-
-            cJump->cjmp_inst.condition_op = cop;
-            cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
-
-            cJump->next = NULL;
-            current->next = cJump;
-            
-            current = cJump;
-
-            parseBody();
-
-            cJump->cjmp_inst.target = current->next;
-
+        ConditionalOperatorType cop;
+        //get conditional operation
+        if(condition[1].lexeme == ">") {
+            cop = CONDITION_GREATER;
         }
+        else if(condition[1].lexeme == "<") {
+            cop = CONDITION_LESS;
+        }
+        else {
+            cop = CONDITION_NOTEQUAL;
+        }
+
+        cJump->cjmp_inst.condition_op = cop;
+        cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
+
+        cJump->next = NULL;
+        current->next = cJump;
+        
+        current = cJump;
+
+        parseBody();
+
+        InstructionNode* noop = new InstructionNode();
+        noop->type = NOOP;
+        noop->next = NULL;
+        current->next = noop;
+        cJump->cjmp_inst.target = noop;
+
+        current = noop;
+
     }
+    
 }
 
 
 void parseStatementList() {
-    //call parseStatement() for all statements in the list
+    //std::cout << "parseStatementList" << endl;
+    //call parseStatement() for all statements in the list    
     while(lexer->peek(1).token_type != END_OF_FILE) {
-        parseStatement();
+        if(lexer->peek(1).token_type != RBRACE) {
+            parseStatement();
+        }
+        else{
+            break;
+        }
     }
 }
 
 void parseStatement() {
+    //std::cout << "parseStatement" << endl;
+
+
     //peek ahead and see what keyword it is and call the appropriate parser
     //assignment
+
+    ////std::cout << "\tpeek1: " << lexer->peek(1).lexeme << endl;
 
     //while
     if(lexer->peek(1).token_type == WHILE) {
@@ -385,44 +404,22 @@ void parseStatement() {
     else if(lexer->peek(1).token_type == OUTPUT) {
         parseOutput();
     }
+    else{
+        parseAssignment();
+    }
 }
 
 void parseBody() {
+    //std::cout << "parseBody" << endl;
     //consume LBRACE
     lexer->GetToken();
-
     parseStatementList();
-
     //consume RBRACE
     lexer->GetToken();
 }
 
-// std::vector<Token> parseCase() {
-//     std::vector<Token> cases;
-
-//     if (lexer->peek(1).token_type == CASE){
-//         if (lexer->peek(2).token_type == NUM){
-//             if (lexer->peek(3).token_type == COLON){
-                
-//                 //get case
-//                 cases.push_back(lexer->GetToken());
-
-//                 //get num
-//                 cases.push_back(lexer->GetToken());
-
-//                 //get colon
-//                 lexer->GetToken();
-                
-//                 parseBody();
-//             }
-//         }
-//     }
-
-//     return cases;
-
-// }
-
 void parseCaseList(Token switchId) {
+    //std::cout << "parseCaseList" << endl;
     InstructionNode* endSwitch = new InstructionNode();
     endSwitch->type = NOOP;
     
@@ -454,14 +451,12 @@ void parseCaseList(Token switchId) {
             current = cJump;
 
             parseBody();
-
-            current->next = endSwitch;
-
-            cJump->cjmp_inst.target = cJump->next;
             
             InstructionNode* noop = new InstructionNode();
             noop->type = NOOP;
-            cJump->next = noop;
+            noop->next = NULL;
+            current->next = noop;
+            cJump->cjmp_inst.target = noop;
             current = noop;
 
         }
@@ -473,6 +468,7 @@ void parseCaseList(Token switchId) {
 
 //translate it to a sequence of IF statements
 void parseSwitch() {
+    //std::cout << "parseSwitch" << endl;
     Token switchId;
     //take care of switch statements with and without default case
     if (lexer->peek(1).token_type == SWITCH){
@@ -500,6 +496,7 @@ ConditionalOperatorType condOpType(std::string op) {
 
 //translate it to a WHILE loop
 void parseFor() {
+    //std::cout << "parseFor" << endl;
     if(lexer->peek(1).token_type == FOR) {
         //consume FOR
         lexer->GetToken();
@@ -552,40 +549,40 @@ void parseFor() {
 }
 
 void parseInputs() {
+    //std::cout << "parseInputs" << endl;
     //go thorugh the int list at the end of the input file and add each one in order to input vector
     while(lexer->peek(1).token_type != END_OF_FILE) {
-        inputs.push_back(stoi(lexer->GetToken().lexeme));
+        //std::cout << lexer->peek(1).lexeme << endl;
+        inputs.push_back(std::stoi(lexer->GetToken().lexeme));
     }
-    inputs.push_back(stoi(lexer->GetToken().lexeme));
-
     lexer->GetToken();
 }
 
 //assigns each variable a space in mem using next_available as index
 void parseIdList() {
+    //std::cout << "parseIdList" << endl;
     next_available = 0;
 
     while(lexer->peek(1).token_type != SEMICOLON) {
-        if(lexer->peek(1).token_type == COMMA) {
-            lexer->GetToken();
-        }
-        else {
+        if(lexer->peek(1).token_type != COMMA) {
             address[next_available] = lexer->GetToken().lexeme;
             mem[next_available] = 0;
             next_available++;
         }
+        else {
+            lexer->GetToken();
+        }
     }
-}
-
-void parseVarSection() {
-    parseIdList();
-
-    //consume the SEMICOLON
     lexer->GetToken();
 }
 
+void parseVarSection() {
+    ////std::cout << "parseVarSection" << endl;
+    parseIdList();
+}
+
 void parseProgram() {
-    lexer = new LexicalAnalyzer();
+    ////std::cout << "parseProgram" << endl;
     InstructionNode* noop = new InstructionNode;
     noop->type = NOOP;
     current = noop;
@@ -599,7 +596,13 @@ void parseProgram() {
 }
 
 struct InstructionNode * parse_generate_intermediate_representation() {
+    //std::cout << "instructionNode" << endl;
     //parse program
     parseProgram();
+
+    printf("----INSTRUCTION NODE----\n");
+    std::cout << "mem: " << mem[0] << ", " << mem[1] << ", " << mem[2] << ", " << mem[3] << ", " << mem[4] << "\n";
+    std::cout << "address: " << address[0] << ", " << address[1] << ", " << address[2] << ", " << address[3] << ", " << address[4] << "\n";
+
     return start;
 }
