@@ -1,3 +1,8 @@
+//Alexander Burton and Naomi Sano finished the parsing functions together before 
+// the announcement to work solo. The debugging of the code was done individually.
+
+
+
 #include <cstdlib>
 #include <iostream>
 #include <stdio.h>
@@ -54,6 +59,15 @@ void parseProgram();
 int indexOfToken(std::string str) {
     for(int i = 0; i < 1000; i++) {
         if(address[i] == str) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int indexOfTokenMem(int target) {
+    for(int i = 0; i < 1000; i++) {
+        if(mem[i] == target) {
             return i;
         }
     }
@@ -144,7 +158,10 @@ std::vector<Token> parseAssignment() {
     // ID EQUAL expr SEMICOLON
     // ID EQUAL primary SEMICOLON
     std::vector<Token> assignment;
-    bool primary = false;
+
+    //make instruction node
+    InstructionNode* assignInstruction = new InstructionNode();
+    assignInstruction->type = ASSIGN;
 
     //the ID
     assignment.push_back(lexer->GetToken());
@@ -153,54 +170,90 @@ std::vector<Token> parseAssignment() {
     //primary (ID or NUM)
     assignment.push_back(lexer->GetToken());
 
+    //      get lhs index
+    int lhsIndex = indexOfToken(assignment[0].lexeme);
+    assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
+
+    //      get rhs op1 index
+    int op1Index;
+    if (assignment[2].token_type != ID){//if id, then op1 is index of token
+        //if constant, add to mem
+        int op1Val = std::stoi(assignment[2].lexeme);
+        
+        mem[next_available] = op1Val;
+        address[next_available] = assignment[2].lexeme;
+        next_available++;
+
+        //then find here
+        op1Index = indexOfToken(assignment[2].lexeme);
+    }
+    else{
+        //else is an ID find index
+        op1Index = indexOfToken(assignment[2].lexeme);
+    }
+
+    //std::cout<< "op1Index: " << assignment[2].lexeme << " = " << op1Index << endl;
+    
+    //then find index (which should just be next_available--)
+    //else is an ID find index
+
+    assignInstruction->assign_inst.operand1_index = op1Index;
+
+    //if expression next is not semicolon, it is expression, add to instruction list 
     if (lexer->peek(1).token_type != SEMICOLON){
         //op
         assignment.push_back(lexer->GetToken());
         //second primary
         assignment.push_back(lexer->GetToken());
+
+        //----get op----
+        ArithmeticOperatorType aop;
+        //get conditional operation
+        if(assignment[3].token_type == PLUS) {
+            aop = OPERATOR_PLUS;
+        }
+        else if(assignment[3].token_type == MINUS) {
+            aop = OPERATOR_MINUS;
+        }
+        else if(assignment[3].token_type == MULT) {
+            aop = OPERATOR_MULT;
+        }
+        else if(assignment[3].token_type == DIV) {
+            aop = OPERATOR_DIV;
+        }
+
+        //----get op2----
+        //if id, then op2 is index of token
+        int op2Index;
+        if (assignment[4].token_type != ID){
+            //if constant, add to mem
+            int op2Val = std::stoi(assignment[4].lexeme);
+            
+            mem[next_available] = op2Val;
+            address[next_available] = assignment[4].lexeme;
+            next_available++;
+
+            //then find index (which should just be next_available--)
+            op2Index = indexOfToken(assignment[4].lexeme);
+        }
+        else{
+            //else is an ID find index
+            op2Index = indexOfToken(assignment[4].lexeme);
+        }
+
+        //std::cout<< "op2Index: " << assignment[4].lexeme << " = " << op2Index << endl;
+        
+        assignInstruction->assign_inst.op = aop;
+        assignInstruction->assign_inst.operand2_index = op2Index;
+
     }
+    else{
+        assignInstruction->assign_inst.op = OPERATOR_NONE;
+    }
+
 
     //get semicolon
     lexer->GetToken();
-
-    //make instruction node
-    InstructionNode* assignInstruction = new InstructionNode();
-    assignInstruction->type = ASSIGN;
-    //if size is 3, then the rhs is primary
-    if (primary == true){
-        int lhsIndex = indexOfToken(assignment[0].lexeme);
-        int op1Index = indexOfToken(assignment[2].lexeme);
-        assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
-        assignInstruction->assign_inst.operand1_index = op1Index;
-        assignInstruction->assign_inst.op = OPERATOR_NONE;
-    }
-    else{ 
-        //else is expression
-        int lhsIndex = indexOfToken(assignment[0].lexeme);
-        int op1Index = indexOfToken(assignment[2].lexeme);
-        int op2Index = indexOfToken(assignment[4].lexeme);
-        //int opInstIndex = indexOfToken(assignment[3].lexeme);
-
-        assignInstruction->assign_inst.left_hand_side_index = lhsIndex;
-        assignInstruction->assign_inst.operand1_index = op1Index;
-        assignInstruction->assign_inst.operand2_index = op2Index;
-
-        ArithmeticOperatorType aop;
-        //get conditional operation
-        if(assignment[3].lexeme == "+") {
-            aop = OPERATOR_PLUS;
-        }
-        else if(assignment[3].lexeme == "-") {
-            aop = OPERATOR_MINUS;
-        }
-        else if(assignment[3].lexeme == "*") {
-            aop = OPERATOR_MULT;
-        }
-        else if(assignment[3].lexeme == "/") {
-            aop = OPERATOR_DIV;
-        }
-        assignInstruction->assign_inst.op = aop;
-    }
 
     //link 
     current->next = assignInstruction;
@@ -253,8 +306,6 @@ void parseWhile() {
     if(lexer->peek(1).token_type == WHILE) {
         lexer->GetToken();
     
-        //consume LPARENTHESIS
-        lexer->GetToken();
 
         std::vector<Token> condition = parseCondition();
 
@@ -264,19 +315,39 @@ void parseWhile() {
             cJump->type = CJMP;
             cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
             
+
             ConditionalOperatorType cop;
             //get conditional operation
-            if(condition[1].lexeme == ">") {
+            if(condition[1].token_type == GREATER) {
                 cop = CONDITION_GREATER;
             }
-            else if(condition[1].lexeme == "<") {
+            else if(condition[1].token_type == LESS) {
                 cop = CONDITION_LESS;
             }
             else {
                 cop = CONDITION_NOTEQUAL;
             }
+
+
+            int cop2Index;
+            if (condition[2].token_type != ID){//if id, then op1 is index of token
+                //if constant, add to mem
+                int cop1Val = std::stoi(condition[2].lexeme);
+                
+                mem[next_available] = cop1Val;
+                address[next_available] = condition[2].lexeme;
+                next_available++;
+
+                //then find here
+                cop2Index = indexOfToken(condition[2].lexeme);
+            }
+            else{
+                //else is an ID find index
+                cop2Index = indexOfToken(condition[2].lexeme);
+            }
+
             cJump->cjmp_inst.condition_op = cop;
-            cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
+            cJump->cjmp_inst.operand2_index = cop2Index;
 
             //set jump to the first instruction of body
             current->next = cJump;
@@ -303,16 +374,13 @@ void parseWhile() {
 }
 
 void parseIf() {
-    //std::cout << "parseIf" << endl;
     
     //consume the IF
     lexer->GetToken();
 
-    //consume the LPARENTHESIS
-    lexer->GetToken();
-
     //get the condition involved
     std::vector<Token> condition = parseCondition();
+
 
     if(condition.size() != 0) {
         InstructionNode* cJump = new InstructionNode();
@@ -321,10 +389,10 @@ void parseIf() {
 
         ConditionalOperatorType cop;
         //get conditional operation
-        if(condition[1].lexeme == ">") {
+        if(condition[1].token_type == GREATER) {
             cop = CONDITION_GREATER;
         }
-        else if(condition[1].lexeme == "<") {
+        else if(condition[1].token_type == LESS) {
             cop = CONDITION_LESS;
         }
         else {
@@ -424,7 +492,7 @@ void parseCaseList(Token switchId) {
     endSwitch->type = NOOP;
     
     do {
-        //consume CASE
+        //consume DEFAULT
         if(lexer->peek(1).token_type == DEFAULT) {
             //consume DEFAULT
             lexer->GetToken();
@@ -438,13 +506,25 @@ void parseCaseList(Token switchId) {
             //consume CASE
             lexer->GetToken();
             Token op2 = lexer->GetToken();
+
+            int op2Index;
+            //is a num add to mem and address
+            int op2ValasInt = std::stoi(op2.lexeme);
+            mem[next_available] = op2ValasInt;
+            address[next_available] = op2.lexeme;
+            next_available++;
+
+            //then find here
+            op2Index = indexOfToken(op2.lexeme);
+            
             //consume COLON
             lexer->GetToken();
             //make IF instruction 
             InstructionNode* cJump = new InstructionNode();
             cJump->type = CJMP;
+        
             cJump->cjmp_inst.operand1_index = indexOfToken(switchId.lexeme);
-            cJump->cjmp_inst.operand2_index = indexOfToken(op2.lexeme);
+            cJump->cjmp_inst.operand2_index = op2Index;
             cJump->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
 
             current->next = cJump;
@@ -455,10 +535,12 @@ void parseCaseList(Token switchId) {
             InstructionNode* noop = new InstructionNode();
             noop->type = NOOP;
             noop->next = NULL;
-            current->next = noop;
-            cJump->cjmp_inst.target = noop;
-            current = noop;
 
+            cJump->cjmp_inst.target = cJump->next;
+            cJump->next = noop;
+            current->next = endSwitch;
+            current = noop;
+    
         }
     }while(lexer->peek(1).token_type != RBRACE);
 
@@ -484,68 +566,90 @@ void parseSwitch() {
     }
 }
 
-ConditionalOperatorType condOpType(std::string op) {
-    if(op == ">") {
-        return CONDITION_GREATER;
-    }
-    if(op == "<") {
-        return CONDITION_LESS;
-    }
-    return CONDITION_NOTEQUAL;
-}
 
 //translate it to a WHILE loop
 void parseFor() {
     //std::cout << "parseFor" << endl;
-    if(lexer->peek(1).token_type == FOR) {
+    //if(lexer->peek(1).token_type == FOR) {
         //consume FOR
         lexer->GetToken();
         //consume LPARENTHESIS
         lexer->GetToken();
 
+        //parse assignment 1
         parseAssignment();
-        //keep track of the first assignment 
         InstructionNode* firstAssignment = current;
 
+        //parse condition
         std::vector<Token> condition = parseCondition();
 
         //consume SEMICOLON
         lexer->GetToken();
 
+        //parse assignment 2
         parseAssignment();
         InstructionNode* secondAssignment = current;
+
+        //consume the RPAREN
+        lexer->GetToken();
+
 
         //make a CJ instruction
         InstructionNode* cJump = new InstructionNode();
         cJump->type = CJMP;
         cJump->cjmp_inst.operand1_index = indexOfToken(condition[0].lexeme);
-        cJump->cjmp_inst.condition_op = condOpType(condition[1].lexeme);
-        cJump->cjmp_inst.operand2_index = indexOfToken(condition[2].lexeme);
 
+        ConditionalOperatorType cop;
+        //get conditional operation
+        if(condition[1].token_type == GREATER) {
+            cop = CONDITION_GREATER;
+        }
+        else if(condition[1].token_type == LESS) {
+            cop = CONDITION_LESS;
+        }
+        else {
+            cop = CONDITION_NOTEQUAL;
+        }
+        cJump->cjmp_inst.condition_op = cop;
+
+        int cop2Index;
+        if (condition[2].token_type != ID){//if id, then op1 is index of token
+            //if constant, add to mem
+            int cop2Val = std::stoi(condition[2].lexeme);
+            
+            mem[next_available] = cop2Val;
+            address[next_available] = condition[2].lexeme;
+            next_available++;
+
+            //then find here
+            cop2Index = indexOfToken(condition[2].lexeme);
+        }
+        else{
+            //else is an ID find index
+            cop2Index = indexOfToken(condition[2].lexeme);
+        }
+        cJump->cjmp_inst.operand2_index = cop2Index;
+
+
+        //link before body
         firstAssignment->next = cJump;
-
+        cJump->next = NULL;
         current = cJump;
-
-        //consume the RPAREN
-        lexer->GetToken();
 
         parseBody();
 
+        //link after body
         current->next = secondAssignment;
-        current = current->next;
+        secondAssignment->next = cJump;
 
-        current->next = cJump;
-
-        //create NOOP
+        //create NOOP and link
         InstructionNode* noop = new InstructionNode();
         noop->type = NOOP;
         noop->next = NULL;
 
         cJump->cjmp_inst.target = noop;
         current = noop;
-
-        
-    }
+    //}
 }
 
 void parseInputs() {
@@ -600,9 +704,25 @@ struct InstructionNode * parse_generate_intermediate_representation() {
     //parse program
     parseProgram();
 
-    printf("----INSTRUCTION NODE----\n");
-    std::cout << "mem: " << mem[0] << ", " << mem[1] << ", " << mem[2] << ", " << mem[3] << ", " << mem[4] << "\n";
-    std::cout << "address: " << address[0] << ", " << address[1] << ", " << address[2] << ", " << address[3] << ", " << address[4] << "\n";
+    /*std::cout << "mem: " << mem[0] << ", " 
+    <<  mem[1] << ", " 
+    <<  mem[2] << ", " 
+    <<  mem[3] << ", " 
+    <<  mem[4] << ", " 
+    <<  mem[5] << ", " 
+    <<  mem[6] << ", " 
+    <<  mem[7] << ", " 
+    <<  mem[8] << ", " << endl;
+
+    std::cout << "address: " << address[0] << ", " 
+    <<  address[1] << ", " 
+    <<  address[2] << ", " 
+    <<  address[3] << ", " 
+    <<  address[4] << ", " 
+    <<  address[5] << ", " 
+    <<  address[6] << ", " 
+    <<  address[7] << ", " 
+    <<  address[8] << ", " << endl;*/
 
     return start;
 }
