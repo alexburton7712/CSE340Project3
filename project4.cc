@@ -14,6 +14,8 @@ std::vector<InstructionNode*> instructionList;
 
 std::string address[1000];
 
+InstructionNode* start;
+
 InstructionNode* current;
 
 bool isPrimary(int index){
@@ -552,8 +554,10 @@ void parseStatementList() {
 
 void parseProgram() {
     lexer = new LexicalAnalyzer();
-    current = new InstructionNode;
-    current->type = NOOP;
+    InstructionNode* noop = new InstructionNode;
+    noop->type = NOOP;
+    current = noop;
+    start = current;
 
     parseVarSection();
 
@@ -563,7 +567,7 @@ void parseProgram() {
 }
 
 struct InstructionNode * parse_generate_intermediate_representation() {
-
-    
-
+    //parse program
+    parseProgram();
+    return start;
 }
