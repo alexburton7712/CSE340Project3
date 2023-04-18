@@ -18,6 +18,36 @@ InstructionNode* start;
 
 InstructionNode* current;
 
+
+int indexOfToken(std::string str);
+bool isPrimary(int index);
+bool isRelop(int index);
+bool isOp(int index);
+bool isCondition(int index);
+bool isExpression(int index);
+std::vector<Token> parseCondition();
+std::vector<Token> parseExpression();
+std::vector<Token> parseAssignment();
+void parseOutput();
+void parseInput();
+void parseWhile();
+void parseIf();
+void parseIf();
+void parseStatementList();
+void parseStatement();
+void parseBody();
+void parseCaseList(Token switchId);
+void parseSwitch();
+ConditionalOperatorType condOpType(std::string op);
+void parseFor();
+void parseInputs();
+void parseIdList();
+void parseVarSection();
+void parseProgram();
+
+
+
+
 //returns index of lexeme in address array
 int indexOfToken(std::string str) {
     for(int i = 0; i < address->length(); i++) {
@@ -216,6 +246,7 @@ void parseInput() {
     lexer->GetToken();
 }
 
+
 void parseWhile() {
     //consume WHILE
     if(lexer->peek(1).token_type == WHILE) {
@@ -312,6 +343,58 @@ void parseIf() {
 
         }
     }
+}
+
+
+void parseStatementList() {
+    //call parseStatement() for all statements in the list
+    while(lexer->peek(1).token_type != END_OF_FILE) {
+        parseStatement();
+    }
+}
+
+void parseStatement() {
+    //peek ahead and see what keyword it is and call the appropriate parser
+    //assignment
+
+    //while
+    if(lexer->peek(1).token_type == WHILE) {
+        parseWhile();
+    }
+    //if
+    else if(lexer->peek(1).token_type == IF) {
+        parseIf();
+    }
+
+    //switch
+    else if(lexer->peek(1).token_type == SWITCH) {
+        parseSwitch();
+    }
+
+    //for
+    else if(lexer->peek(1).token_type == FOR) {
+        parseFor();
+    }
+
+    //input
+    else if(lexer->peek(1).token_type == INPUT) {
+        parseInput();
+    }
+
+    //output
+    else if(lexer->peek(1).token_type == OUTPUT) {
+        parseOutput();
+    }
+}
+
+void parseBody() {
+    //consume LBRACE
+    lexer->GetToken();
+
+    parseStatementList();
+
+    //consume RBRACE
+    lexer->GetToken();
 }
 
 // std::vector<Token> parseCase() {
@@ -478,16 +561,6 @@ void parseInputs() {
     lexer->GetToken();
 }
 
-void parseBody() {
-    //consume LBRACE
-    lexer->GetToken();
-
-    parseStatementList();
-
-    //consume RBRACE
-    lexer->GetToken();
-}
-
 //assigns each variable a space in mem using next_available as index
 void parseIdList() {
     next_available = 0;
@@ -509,47 +582,6 @@ void parseVarSection() {
 
     //consume the SEMICOLON
     lexer->GetToken();
-}
-
-void parseStatement() {
-    //peek ahead and see what keyword it is and call the appropriate parser
-    //assignment
-
-    //while
-    if(lexer->peek(1).token_type == WHILE) {
-        parseWhile();
-    }
-    //if
-    else if(lexer->peek(1).token_type == IF) {
-        parseIf();
-    }
-
-    //switch
-    else if(lexer->peek(1).token_type == SWITCH) {
-        parseSwitch();
-    }
-
-    //for
-    else if(lexer->peek(1).token_type == FOR) {
-        parseFor();
-    }
-
-    //input
-    else if(lexer->peek(1).token_type == INPUT) {
-        parseInput();
-    }
-
-    //output
-    else if(lexer->peek(1).token_type == OUTPUT) {
-        parseOutput();
-    }
-}
-
-void parseStatementList() {
-    //call parseStatement() for all statements in the list
-    while(lexer->peek(1).token_type != END_OF_FILE) {
-        parseStatement();
-    }
 }
 
 void parseProgram() {
