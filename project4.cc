@@ -18,6 +18,16 @@ InstructionNode* start;
 
 InstructionNode* current;
 
+//returns index of lexeme in address array
+int indexOfToken(std::string str) {
+    for(int i = 0; i < address->length(); i++) {
+        if(address[i] == str) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool isPrimary(int index){
     // primary --> ID | NUM
     if (lexer->peek(index).token_type == ID | lexer->peek(index).token_type == NUM){
@@ -476,16 +486,6 @@ void parseBody() {
 
     //consume RBRACE
     lexer->GetToken();
-}
-
-//returns index of lexeme in address array
-int indexOfToken(std::string str) {
-    for(int i = 0; i < address->length(); i++) {
-        if(address[i] == str) {
-            return i;
-        }
-    }
-    return -1;
 }
 
 //assigns each variable a space in mem using next_available as index
